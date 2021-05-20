@@ -39,7 +39,6 @@ public class HtmlControllerDocBuilder implements IControllerDocBuilder {
         data.put("currentApiVersion", DocContext.getCurrentApiVersion());
         data.put("apiVersionList", DocContext.getApiVersionList());
         data.put("projectName", DocContext.getDocsConfig().getProjectName());
-        data.put("i18n", DocContext.getI18n());
 
         try {
             ctrlTemplate.process(data, docFileWriter);

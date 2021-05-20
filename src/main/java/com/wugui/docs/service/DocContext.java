@@ -1,22 +1,17 @@
 package com.wugui.docs.service;
 
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.wugui.docs.config.DocsConfig;
-import com.wugui.docs.config.I18n;
 import com.wugui.docs.exception.ConfigException;
 import com.wugui.docs.parser.AbsControllerParser;
 import com.wugui.docs.parser.ControllerNode;
 import com.wugui.docs.parser.SpringControllerParser;
 import com.wugui.docs.util.CacheUtils;
 import com.wugui.docs.util.LogUtils;
-import com.wugui.docs.util.ParseUtils;
 import com.wugui.docs.util.Utils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -43,8 +38,6 @@ public class DocContext {
     private static Map<File, CompilationUnit> compilationUnitMap = new HashMap<>();
     /** 配置类 */
     private static DocsConfig config;
-    /** 国际化 */
-    private static I18n i18n;
     /** api版本 */
     private static String currentApiVersion;
     /** 获取历史版本列表 */
@@ -60,7 +53,6 @@ public class DocContext {
             config.setProjectName("api_docs");
         }
         DocContext.config = config;
-        i18n = new I18n(config.getLocale());
         DocContext.currentApiVersion = config.getApiVersion();
         setProjectPath();
         setDocPath();
@@ -114,8 +106,7 @@ public class DocContext {
      * @return
      */
     public static File getLogFile() {
-        File file = new File(DocContext.getDocPath() + "apiDoc.log");
-        return file;
+        return new File(DocContext.getDocPath() + "apiDoc.log");
     }
 
     /**
@@ -172,11 +163,6 @@ public class DocContext {
         return compilationUnitMap;
     }
 
-    /**
-     * get controller parser, it will return different parser by different framework you are using.
-     *
-     * @return
-     */
     public static AbsControllerParser controllerParser() {
         return controllerParser;
     }
@@ -205,8 +191,5 @@ public class DocContext {
         return lastVersionControllerNodes;
     }
 
-    public static I18n getI18n() {
-        return i18n;
-    }
 
 }

@@ -3,9 +3,6 @@ package com.wugui.docs.config;
 import java.util.Locale;
 import java.util.ResourceBundle;
 
-/**
- * @author yeguozhong yedaxia.github.com
- */
 public class I18n {
 
     private ResourceBundle resourceBundle;

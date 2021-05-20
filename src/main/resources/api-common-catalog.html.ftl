@@ -1,5 +1,5 @@
 <div class="search-box form-group">
-    <input type="text" class="form-control" id="inputSearch" placeholder="${i18n.getMessage('searchPlaceholder')}">
+    <input type="text" class="form-control" id="inputSearch" placeholder="搜索接口">
     <span class="glyphicon glyphicon-search form-control-feedback" aria-hidden="true"></span>
 </div>
 <div id="accordion" class="catalog">
@@ -14,9 +14,9 @@
                     <a class="catalog-item" href="${reqNode.codeFileUrl}">
                         ${(reqNode.description)!''}
                         <#if reqNode.changeFlag == 1>
-                            <span class="label label-success">${i18n.getMessage('new')}</span>
+                            <span class="label label-success">新增</span>
                         <#elseif reqNode.changeFlag == 2>
-                            <span class="label label-warning">${i18n.getMessage('modify')}</span>
+                            <span class="label label-warning">修改</span>
                         </#if>
                     </a>
                 </#list>

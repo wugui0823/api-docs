@@ -42,7 +42,7 @@
             <div class="book-header">
                 <div class="d-flex justify-content-between">
                     <a class="header-menu toggle-catalog" href="javascript:void(0)"><i
-                            class="glyphicon glyphicon-align-justify"></i> ${i18n.getMessage('catalog')}</a>
+                            class="glyphicon glyphicon-align-justify"></i> 目录</a>
                 </div>
             </div>
             <div class="page-wrapper">
@@ -53,8 +53,8 @@
                         <#assign requestNode = reqNode/>
                         <#if reqNode.lastRequestNode?? && reqNode.changeFlag == 2>
                             <ul class="nav nav-tabs" role="tablist">
-                                <li role="presentation" class="active"><a href="#current" aria-controls="current" role="tab" data-toggle="tab">${i18n.getMessage('currentVersion')}</a></li>
-                                <li role="presentation"><a href="#last" aria-controls="last" role="tab" data-toggle="tab">${i18n.getMessage('lastVersion')}</a></li>
+                                <li role="presentation" class="active"><a href="#current" aria-controls="current" role="tab" data-toggle="tab">当前版本</a></li>
+                                <li role="presentation"><a href="#last" aria-controls="last" role="tab" data-toggle="tab">上一版本</a></li>
                             </ul>
                             <div class="tab-content">
                                 <div role="tabpanel" class="tab-pane active" id="current">

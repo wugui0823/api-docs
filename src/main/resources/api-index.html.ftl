@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>${projectName}API Documentation</title>
+    <title>${projectName}</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/google-code-prettify@1.0.5/bin/prettify.min.css">
@@ -42,14 +42,14 @@
             <div class="book-header">
                 <div class="d-flex justify-content-between">
                     <a class="header-menu toggle-catalog" href="javascript:void(0)"><i
-                                class="glyphicon glyphicon-align-justify"></i> ${i18n.getMessage('catalog')}</a>
+                                class="glyphicon glyphicon-align-justify"></i>目录</a>
                 </div>
             </div>
             <div class="page-wrapper">
                 <div class="page-inner">
                     <div class="main-content">
-                        <img src="http://static.nowait.xin/pic/japidocs-logo.png" width="200" height="200">
-                        <h4 style="margin: 20px">${i18n.getMessage('doc.generate.tip')}</h4>
+                        <#--<img src="http://static.nowait.xin/pic/japidocs-logo.png" width="200" height="200">-->
+                        <h4 style="margin: 20px">接口文档</h4>
                         <div class="list-group" style="min-width: 200px">
                             <#list controllerNodeList as ctrolNode>
                                 <a href="${ctrolNode.docFileName}" class="list-group-item">${ctrolNode.description}</a>

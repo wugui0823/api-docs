@@ -177,7 +177,7 @@ public class ClassNode {
             fieldDesc = fieldType;
         }
         if(showFieldNotNull && fieldNode.getNotNull()){
-            fieldDesc =  String.format("%s【%s】", fieldDesc, DocContext.getI18n().getMessage("parameterNeed"));
+            fieldDesc =  String.format("%s【%s】", fieldDesc, "必须");
         }
         return fieldDesc;
     }

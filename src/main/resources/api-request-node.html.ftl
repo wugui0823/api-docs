@@ -1,21 +1,21 @@
 <h2 id="${requestNode.methodName}"><a href="#">${(requestNode.description)!''} <#if requestNode.deprecated><span
-                class="badge">${i18n.getMessage('deprecated')}</span></#if></a></h2>
+                class="badge">过期</span></#if></a></h2>
 <#if requestNode.supplement??>
     <p class="text-muted">${requestNode.supplement}</p>
 </#if>
 <#if requestNode.author??>
-    <p class="text-muted"><em>${i18n.getMessage('author')}: ${requestNode.author}</em></p>
+    <p class="text-muted"><em>作者: ${requestNode.author}</em></p>
 </#if>
-<p><strong>${i18n.getMessage('requestUrl')}</strong></p>
+<p><strong>请求URL</strong></p>
 <p>
     <code>${requestNode.url}</code>
     <#list requestNode.method as method>
         <span class="label label-default">${method}</span>
     </#list>
     <#if requestNode.changeFlag == 1>
-        <span class="label label-success">${i18n.getMessage('new')}</span>
+        <span class="label label-success">新增</span>
     <#elseif requestNode.changeFlag == 2>
-        <span class="label label-warning">${i18n.getMessage('modify')}</span>
+        <span class="label label-warning">修改</span>
     </#if>
 </p>
 <#if requestNode.paramNodes?size != 0>
@@ -26,20 +26,20 @@
         </#if>
     </#list>
     <#if requestJsonBody == '' || (requestJsonBody != '' && requestNode.paramNodes?size gt 1)>
-        <p><strong>${i18n.getMessage('requestParameters')}</strong> <span class="badge">application/x-www-form-urlencoded</span></p>
+        <p><strong>请求参数</strong> <span class="badge">application/x-www-form-urlencoded</span></p>
         <table class="table table-bordered">
             <tr>
-                <th>${i18n.getMessage('parameterName')}</th>
-                <th>${i18n.getMessage('parameterType')}</th>
-                <th>${i18n.getMessage('parameterNeed')}</th>
-                <th>${i18n.getMessage('description')}</th>
+                <th>参数名</th>
+                <th>类型</th>
+                <th>必须</th>
+                <th>描述</th>
             </tr>
             <#list requestNode.paramNodes as paramNode>
                 <#if !(paramNode.jsonBody)>
                     <tr>
                         <td>${paramNode.name}</td>
                         <td>${paramNode.type}</td>
-                        <td>${paramNode.required?string(i18n.getMessage('yes'),i18n.getMessage('no'))}</td>
+                        <td>${paramNode.required?string('是','否')}</td>
                         <td>${(paramNode.description)!''}</td>
                     </tr>
                 </#if>
@@ -47,12 +47,12 @@
         </table>
     </#if>
     <#if requestJsonBody != ''>
-        <p><strong>${i18n.getMessage('requestBody')}</strong> <span class="badge">application/json</span></p>
+        <p><strong>请求体</strong> <span class="badge">application/json</span></p>
         <pre class="prettyprint lang-json">${requestJsonBody}</pre>
     </#if>
 </#if>
 <#if requestNode.responseNode??>
-    <p><strong>${i18n.getMessage('responseResult')}</strong></p>
+    <p><strong>返回结果</strong></p>
     <pre class="prettyprint lang-json">${requestNode.responseNode.toJsonApi()}</pre>
     <#if requestNode.androidCodePath??>
         <div class="form-group">
