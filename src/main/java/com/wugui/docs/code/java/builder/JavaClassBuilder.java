@@ -5,22 +5,19 @@ import com.wugui.docs.code.ICodeBuilder;
 public class JavaClassBuilder implements ICodeBuilder {
 
     private String className;
-    private String mFieldCode;
-    private String mMethodCode;
-    private String entryClassTemplate;
+    private String context;
+    private String classTemplate;
 
-    public JavaClassBuilder(String entryClassTemplate, String className, String mFieldCode, String mMethodCode) {
+    public JavaClassBuilder(String classTemplate, String className, String context) {
         this.className = className;
-        this.mFieldCode = mFieldCode;
-        this.mMethodCode = mMethodCode;
-        this.entryClassTemplate = entryClassTemplate;
+        this.context = context;
+        this.classTemplate = classTemplate;
     }
 
     @Override
     public String build() {
-        entryClassTemplate = entryClassTemplate.replace("${CLASS_NAME}",className);
-        entryClassTemplate = entryClassTemplate.replace("${FIELDS}",mFieldCode);
-        entryClassTemplate = entryClassTemplate.replace("${METHODS}",mMethodCode);
-        return entryClassTemplate;
+        classTemplate = classTemplate.replace("${CLASS_NAME}",className);
+        classTemplate = classTemplate.replace("${CONTENT}",context);
+        return classTemplate;
     }
 }

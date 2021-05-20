@@ -4,15 +4,15 @@ import com.wugui.docs.code.ICodeBuilder;
 import com.wugui.docs.code.model.FieldModel;
 
 /**
- * Java属性代码生成
+ * 字段Get/Set方法代码生成
  */
-public class JavaFieldBuilder implements ICodeBuilder {
+public class JavaGetSetBuilder implements ICodeBuilder {
     /** 代码模板 */
     private String codeTemplate;
     /** 字段对象 */
     private FieldModel fieldModel;
 
-    public JavaFieldBuilder(String codeTemplate) {
+    public JavaGetSetBuilder(String codeTemplate) {
         this.codeTemplate = codeTemplate;
     }
 
@@ -23,10 +23,12 @@ public class JavaFieldBuilder implements ICodeBuilder {
 
     @Override
     public String build() {
-        String template = codeTemplate;
-        template = template.replace("${FIELD_TYPE}", fieldModel.getFieldType());
+        String template = this.codeTemplate;
+        template = template.replace("${REMOTE_FIELD_NAME}", fieldModel.getRemoteFieldName());
+        template = template.replace("${CASE_FIELD_NAME}", fieldModel.getCaseFieldName());
         template = template.replace("${FIELD_NAME}", fieldModel.getFieldName());
-        template = template.replace("${COMMENT}", fieldModel.getComment());
+        template = template.replace("${FIELD_TYPE}", fieldModel.getFieldType());
         return template + "\n";
     }
+
 }

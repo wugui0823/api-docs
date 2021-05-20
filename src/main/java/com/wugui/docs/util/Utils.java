@@ -1,7 +1,12 @@
 package com.wugui.docs.util;
 
 import com.alibaba.fastjson.JSONObject;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import jdk.nashorn.internal.codegen.CompileUnit;
 import org.apache.commons.lang.StringUtils;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.BufferedWriter;
 import java.io.Closeable;
@@ -13,7 +18,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Stack;
 
 public class Utils {
@@ -189,8 +196,8 @@ public class Utils {
 		return javaFile.getName().substring(0, fileName.lastIndexOf("."));
 	}
 
-	public static List<File> scan(File javaSrcDir, FilenameFilter filter) {
-		List<File> fileList = new ArrayList<>();
+	public static Map<File, CompilationUnit> scan(File javaSrcDir) {
+		Map<File, CompilationUnit> fileList = new HashMap<>();
 		Stack<File> directoryStack = new Stack<>();
 		directoryStack.push(javaSrcDir);
 		while (!directoryStack.isEmpty()) {
@@ -199,8 +206,13 @@ public class Utils {
 			for (File child : childFileList) {
 				if (child.isDirectory()) {
 					directoryStack.push(child);
-				} else if (filter.accept(child, child.getName())) {
-					fileList.add(child);
+					continue;
+				}
+				CompilationUnit unit = ParseUtils.compilationUnit(child);
+				boolean validController = unit.findAll(ClassOrInterfaceDeclaration.class).stream()
+						.anyMatch(cd -> cd.isAnnotationPresent(Controller.class) || cd.isAnnotationPresent(RestController.class));
+				if (validController) {
+					fileList.put(child, unit);
 				}
 			}
 		}

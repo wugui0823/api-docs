@@ -1,8 +1,6 @@
 <pre class="prettyprint lang-java">
-public class ${CLASS_NAME} implements Serializable{
+public class ${CLASS_NAME} implements Serializable {
 
-${FIELDS}
-${METHODS}
-}
+${CONTENT}
 </pre>
 

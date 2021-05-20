@@ -1,7 +1,8 @@
 package com.wugui.docs.code.model;
 
-import com.wugui.docs.code.provider.DocFieldHelper;
-
+/**
+ * 对象字段信息
+ */
 public class FieldModel {
 
     private String remoteFieldName;
@@ -22,10 +23,6 @@ public class FieldModel {
         return fieldType;
     }
     
-    public String getIFieldType(){
-    	return DocFieldHelper.getIosFieldType(fieldType);
-    }
-
     public void setFieldType(String fieldType) {
         this.fieldType = fieldType;
     }
@@ -52,14 +49,6 @@ public class FieldModel {
 
 	public void setComment(String comment) {
 		this.comment = comment;
-	}
-
-	public String getAssign() {
-		if(fieldType != null && fieldType.equalsIgnoreCase("string")){
-			return "assign";
-		}else{
-			return "strong";
-		}
 	}
 
 }

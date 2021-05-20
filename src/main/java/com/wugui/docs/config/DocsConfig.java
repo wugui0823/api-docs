@@ -10,7 +10,6 @@ public class DocsConfig {
     /** 源码路径 */
     List<String> javaSrcPaths = new ArrayList<>();
     String docsPath; // default equals projectPath
-    String resourcePath; // if empty, use the default resources
     String mvcFramework; //spring, play, jfinal, generic, can be empty
     String apiVersion; // this api version
     String projectName; //project name
@@ -78,14 +77,6 @@ public class DocsConfig {
 
     public void setLocale(Locale locale) {
         this.locale = locale;
-    }
-
-    public String getResourcePath() {
-        return resourcePath;
-    }
-
-    public void setResourcePath(String resourcePath) {
-        this.resourcePath = resourcePath;
     }
 
     /**

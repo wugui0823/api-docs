@@ -24,7 +24,7 @@ public class TestController {
     }
 
     /**
-     * hello2 xxx
+     * 无返回值用例
      * @param name
      * @return
      */
@@ -42,5 +42,17 @@ public class TestController {
     public UserInfo login(String name) {
         System.out.println("hello2 " + name);
         return new UserInfo();
+    }
+
+    /**
+     * 泛型返回用例
+     * @param name
+     * @param password
+     * @return
+     */
+    @GetMapping("login")
+    public Result<UserInfo> login(String name, String password) {
+        System.out.println("hello2 " + name);
+        return ResultBuilder.success(new UserInfo());
     }
 }

@@ -1,5 +1,6 @@
 package com.wugui.docs.core;
 
+import com.github.javaparser.ast.CompilationUnit;
 import com.wugui.docs.parser.AbsControllerParser;
 import com.wugui.docs.parser.ControllerNode;
 import com.wugui.docs.parser.RequestNode;
@@ -12,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public abstract class AbsDocGenerator {
 
@@ -37,21 +39,21 @@ public abstract class AbsDocGenerator {
     }
 
     private void initControllerNodes(){
-        File[] controllerFiles = DocContext.getControllerFiles();
-        for (File controllerFile : controllerFiles) {
-            LogUtils.info("start to parse controller file : %s", controllerFile.getName());
-            ControllerNode controllerNode = controllerParser.parse(controllerFile);
+        Map<File, CompilationUnit> controllerFiles = DocContext.getCompilationUnitMap();
+        for (Map.Entry<File, CompilationUnit> entry : controllerFiles.entrySet()) {
+            LogUtils.info("start to parse controller file : %s", entry.getKey().getName());
+            ControllerNode controllerNode = controllerParser.parse(entry.getKey(), entry.getValue());
             if (CollectionUtils.isEmpty(controllerNode.getRequestNodes())) {
                 continue;
             }
-            controllerNode.setSrcFileName(controllerFile.getAbsolutePath());
+            controllerNode.setSrcFileName(entry.getKey().getAbsolutePath());
             final String docFileName = String.format("%s_%s.html", controllerNode.getPackageName().replace(".", "_"), controllerNode.getClassName());
             controllerNode.setDocFileName(docFileName);
             for (RequestNode requestNode : controllerNode.getRequestNodes()) {
                 requestNode.setCodeFileUrl(String.format("%s#%s", docFileName, requestNode.getMethodName()));
             }
             controllerNodeList.add(controllerNode);
-            LogUtils.info("success to parse controller file : %s", controllerFile.getName());
+            LogUtils.info("success to parse controller file : %s", entry.getKey().getName());
         }
     }
 

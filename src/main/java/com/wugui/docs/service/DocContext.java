@@ -1,5 +1,6 @@
 package com.wugui.docs.service;
 
+import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.wugui.docs.config.DocsConfig;
 import com.wugui.docs.config.I18n;
@@ -20,7 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Description:
@@ -37,7 +40,7 @@ public class DocContext {
     private static List<String> javaSrcPaths = new ArrayList<>();
     private static AbsControllerParser controllerParser;
     /** 扫描到的Controller集合 */
-    private static List<File> controllerFiles;
+    private static Map<File, CompilationUnit> compilationUnitMap = new HashMap<>();
     /** 配置类 */
     private static DocsConfig config;
     /** 国际化 */
@@ -99,16 +102,10 @@ public class DocContext {
     }
 
     private static void findOutControllers() {
-        controllerFiles = new ArrayList<>();
         controllerParser = new SpringControllerParser();
         for (String javaSrcPath : getJavaSrcPaths()) {
             LogUtils.info("start find controllers in path : %s", javaSrcPath);
-            File javaSrcDir = new File(javaSrcPath);
-            List<File> files = Utils.scan(javaSrcDir, (f, name) -> f.getName().endsWith(".java") && ParseUtils.compilationUnit(f)
-                    .findAll(ClassOrInterfaceDeclaration.class).stream()
-                    .anyMatch(cd -> cd.isAnnotationPresent(Controller.class) || cd.isAnnotationPresent(RestController.class))
-            );
-            controllerFiles.addAll(files);
+            compilationUnitMap.putAll(Utils.scan(new File(javaSrcPath)));
         }
     }
 
@@ -171,14 +168,8 @@ public class DocContext {
         return javaSrcPaths;
     }
 
-
-    /**
-     * get all controllers in this project
-     *
-     * @return
-     */
-    public static File[] getControllerFiles() {
-        return controllerFiles.toArray(new File[controllerFiles.size()]);
+    public static Map<File, CompilationUnit> getCompilationUnitMap() {
+        return compilationUnitMap;
     }
 
     /**

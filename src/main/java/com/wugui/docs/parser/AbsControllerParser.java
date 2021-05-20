@@ -26,9 +26,9 @@ public abstract class AbsControllerParser {
     private ControllerNode controllerNode;
     private File javaFile;
 
-    public ControllerNode parse(File javaFile) {
+    public ControllerNode parse(File javaFile, CompilationUnit compilationUnit) {
         this.javaFile = javaFile;
-        this.compilationUnit = ParseUtils.compilationUnit(javaFile);
+        this.compilationUnit = compilationUnit;
         this.controllerNode = new ControllerNode();
         String controllerName = Utils.getJavaFileName(javaFile);
         controllerNode.setClassName(controllerName);

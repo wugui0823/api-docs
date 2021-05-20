@@ -12,7 +12,7 @@ import java.util.Map;
 public class ClassNode {
 
     private String className = "";
-    private Class modelClass; //for reflection
+    private Class modelClass;
     private String description;
     private Boolean isList = Boolean.FALSE;
     private List<FieldNode> childNodes = new ArrayList<>();

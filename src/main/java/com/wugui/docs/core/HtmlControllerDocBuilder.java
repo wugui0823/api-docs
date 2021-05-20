@@ -1,7 +1,7 @@
 package com.wugui.docs.core;
 
 import com.wugui.docs.code.CodeGenerator;
-import com.wugui.docs.code.java.JavaCodeGenerator;
+import com.wugui.docs.code.java.JavaBeanGenerator;
 import com.wugui.docs.parser.ControllerNode;
 import com.wugui.docs.parser.RequestNode;
 import com.wugui.docs.service.DocContext;
@@ -19,15 +19,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class HtmlControllerDocBuilder implements IControllerDocBuilder {
-
+    private CodeGenerator generator = new JavaBeanGenerator();
     @Override
     public String buildDoc(ControllerNode controllerNode) throws IOException {
-        for (RequestNode requestNode : controllerNode.getRequestNodes()) {
-            if (requestNode.getResponseNode() != null
-                    && CollectionUtils.isNotEmpty(requestNode.getResponseNode().getChildNodes())) {
-                CodeGenerator javaCodeGenerator = new JavaCodeGenerator(requestNode.getResponseNode());
-                final String javaSrcUrl = javaCodeGenerator.generateCode();
-                requestNode.setAndroidCodePath(javaSrcUrl);
+        for (RequestNode reqNode : controllerNode.getRequestNodes()) {
+            // 如果返回对象的属性，还存在属性，则生成对象文档
+            if (reqNode.getResponseNode() != null
+                    && CollectionUtils.isNotEmpty(reqNode.getResponseNode().getChildNodes())) {
+                String javaSrcUrl = generator.setClassNode(reqNode.getResponseNode()).generateCode();
+                reqNode.setAndroidCodePath(javaSrcUrl);
             }
         }
         final Template ctrlTemplate = getControllerTpl();
