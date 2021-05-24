@@ -80,9 +80,6 @@ public abstract class AbsControllerParser {
         c.findAll(MethodDeclaration.class).stream()
                 .filter(m -> m.getModifiers().contains(Modifier.PUBLIC))
                 .forEach(m -> {
-                    if (!controllerNode.getGenerateDocs() && !DocContext.getDocsConfig().getAutoGenerate()) {
-                        return;
-                    }
                     if(shouldIgnoreMethod(m)){
                         return;
                     }

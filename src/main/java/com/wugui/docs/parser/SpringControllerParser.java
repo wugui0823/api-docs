@@ -16,6 +16,7 @@ import com.github.javaparser.ast.type.Type;
 import com.wugui.docs.util.ParseUtils;
 import com.wugui.docs.util.Utils;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.StringUtils;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
@@ -41,13 +42,13 @@ public class SpringControllerParser extends AbsControllerParser {
         clazz.getAnnotationByClass(RequestMapping.class).ifPresent(a -> {
             if (a instanceof SingleMemberAnnotationExpr) {
                 String baseUrl = ((SingleMemberAnnotationExpr) a).getMemberValue().toString();
-                controllerNode.setBaseUrl(Utils.removeQuotations(baseUrl));
+                controllerNode.setBaseUrl(StringUtils.remove(baseUrl, '\n'));
             } else if (a instanceof NormalAnnotationExpr) {
                 ((NormalAnnotationExpr) a).getPairs().stream()
                         .filter(v -> isUrlPathKey(v.getNameAsString()))
                         .findFirst()
                         .ifPresent(p -> {
-                            controllerNode.setBaseUrl(Utils.removeQuotations(p.getValue().toString()));
+                            controllerNode.setBaseUrl(StringUtils.remove(p.getValue().toString(), '\n'));
                         });
             }
         });
@@ -75,7 +76,7 @@ public class SpringControllerParser extends AbsControllerParser {
                     ((NormalAnnotationExpr) an).getPairs().forEach(p -> {
                         String key = p.getNameAsString();
                         if (isUrlPathKey(key)) {
-                            requestNode.setUrl(Utils.removeQuotations(p.getValue().toString()));
+                            requestNode.setUrl(StringUtils.remove(p.getValue().toString(), '\n'));
                         }
 
                         if ("headers".equals(key)) {
@@ -105,12 +106,10 @@ public class SpringControllerParser extends AbsControllerParser {
                         }
                     });
                 }
-
                 if (an instanceof SingleMemberAnnotationExpr) {
                     String url = ((SingleMemberAnnotationExpr) an).getMemberValue().toString();
-                    requestNode.setUrl(Utils.removeQuotations(url));
+                    requestNode.setUrl(StringUtils.remove(url, '\n'));
                 }
-
                 requestNode.setUrl(Utils.getActionUrl(getControllerNode().getBaseUrl(), requestNode.getUrl()));
             }
         });

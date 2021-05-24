@@ -23,23 +23,19 @@ public class HtmlDocGenerator extends AbsDocGenerator {
 
     @Override
     void generateIndex(List<ControllerNode> controllerNodeList) {
-        FileWriter docFileWriter = null;
-        try {
-            LogUtils.info("generate index start !!!");
+        LogUtils.info("generate index start !!!");
+        final File docFile = new File(DocContext.getDocPath(), "index.html");
+        try (FileWriter docFileWriter = new FileWriter(docFile)) {
             final Template ctrlTemplate = getIndexTpl();
-            final File docFile = new File(DocContext.getDocPath(), "index.html");
-            docFileWriter = new FileWriter(docFile);
             Map<String, Object> data = new HashMap<>();
             data.put("controllerNodeList", controllerNodeList);
-            data.put("currentApiVersion", DocContext.getCurrentApiVersion());
-            data.put("apiVersionList", DocContext.getApiVersionList());
+            data.put("currentApiVersion", DocContext.getCurrentVersion());
+            data.put("apiVersionList", DocContext.getVersionList());
             data.put("projectName", DocContext.getDocsConfig().getProjectName());
             ctrlTemplate.process(data, docFileWriter);
             LogUtils.info("generate index done !!!");
         } catch (TemplateException | IOException ex) {
             LogUtils.error("generate index fail !!!", ex);
-        } finally {
-            Utils.closeSilently(docFileWriter);
         }
         copyCssStyle();
     }

@@ -1,5 +1,6 @@
 package com.wugui.docs.util;
 
+import com.alibaba.fastjson.JSONObject;
 import com.wugui.docs.parser.ClassNode;
 import com.wugui.docs.parser.ControllerNode;
 import com.wugui.docs.parser.ResponseNode;
@@ -69,7 +70,8 @@ public class CacheUtils {
             return null;
         }
         try {
-            ControllerNode[] controllerNodes = Utils.jsonToObject(Utils.streamToString(new FileInputStream(cacheFile)), ControllerNode[].class);
+            String cacheStr = Utils.streamToString(new FileInputStream(cacheFile));
+            ControllerNode[] controllerNodes = JSONObject.parseObject(cacheStr, ControllerNode[].class);
             return Arrays.asList(controllerNodes);
         } catch (IOException ex) {
             LogUtils.error("get ControllerNodes error!!!", ex);

@@ -1,6 +1,7 @@
 package com.wugui.docs.service;
 
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.wugui.docs.config.DocsConfig;
 import com.wugui.docs.exception.ConfigException;
 import com.wugui.docs.parser.AbsControllerParser;
@@ -8,17 +9,25 @@ import com.wugui.docs.parser.ControllerNode;
 import com.wugui.docs.parser.SpringControllerParser;
 import com.wugui.docs.util.CacheUtils;
 import com.wugui.docs.util.LogUtils;
+import com.wugui.docs.util.ParseUtils;
 import com.wugui.docs.util.Utils;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Description:
@@ -27,11 +36,8 @@ import java.util.Map;
  * @since : 2021/5/12 10:21:00
  **/
 public class DocContext {
-    /** 项目路径 */
-    private static String projectPath;
     /** 生产文档路径 */
     private static String docPath;
-    //multi modules
     private static List<String> javaSrcPaths = new ArrayList<>();
     private static AbsControllerParser controllerParser;
     /** 扫描到的Controller集合 */
@@ -39,65 +45,74 @@ public class DocContext {
     /** 配置类 */
     private static DocsConfig config;
     /** api版本 */
-    private static String currentApiVersion;
+    private static String currentVersion;
     /** 获取历史版本列表 */
-    private static List<String> apiVersionList = new ArrayList<>();
+    private static List<String> versionList = new ArrayList<>();
     private static List<ControllerNode> lastVersionControllerNodes;
     private static List<ControllerNode> controllerNodeList;
 
     public static void init(DocsConfig config) {
-        if (StringUtils.isEmpty(config.getApiVersion())) {
-            throw new ConfigException("api version cannot be null");
-        }
-        if (StringUtils.isEmpty(config.getProjectName())) {
-            config.setProjectName("api_docs");
-        }
         DocContext.config = config;
-        DocContext.currentApiVersion = config.getApiVersion();
-        setProjectPath();
+        configCheck();
+        currentVersion = config.getVersion();
         setDocPath();
-        initApiVersions();
-
-        boolean isSetSrcPath = CollectionUtils.isEmpty(config.getJavaSrcPaths());
-        boolean b = isSetSrcPath ? javaSrcPaths.add(getProjectPath()) : javaSrcPaths.addAll(config.getJavaSrcPaths());
-        LogUtils.info("find java src paths:  %s", javaSrcPaths);
-        findOutControllers();
-        initLastVersionControllerNodes();
+        obtainVersionHistoryList();
+        javaSrcPaths.addAll(config.getJavaSrcPaths());
+        controllerParser = new SpringControllerParser();
+        findAndParseController();
+        obtainNewerVersionController();
     }
 
-    private static void initLastVersionControllerNodes() {
+    private static void obtainNewerVersionController() {
         File docDir = new File(docPath).getParentFile();
         File[] childDirs = docDir.listFiles(f -> f.isDirectory());
         if (ArrayUtils.isNotEmpty(childDirs)) {
-            File lastVerDocDir = childDirs[0];
-            for (File childDir : childDirs) {
-                if (!StringUtils.equals(currentApiVersion, childDir.getName())
-                        && childDir.lastModified() > lastVerDocDir.lastModified()) {
-                    lastVerDocDir = childDir;
+            List<String> collect = Arrays.stream(childDirs).map(f -> f.getName())
+                    .sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+            for (String childDir : collect) {
+                if (!StringUtils.equals(currentVersion, childDir)) {
+                    lastVersionControllerNodes = CacheUtils.getControllerNodes(childDir);
+                    break;
                 }
             }
-            if (lastVerDocDir != null) {
-                lastVersionControllerNodes = CacheUtils.getControllerNodes(lastVerDocDir.getName());
-            }
         }
     }
-
+    private static void configCheck() {
+        if (StringUtils.isEmpty(config.getVersion())) {
+            throw new ConfigException("version cannot be null");
+        }
+        if (StringUtils.isEmpty(config.getProjectName())) {
+            throw new ConfigException("projectName cannot be null");
+        }
+        if (StringUtils.isEmpty(config.getDocsPath())) {
+            throw ConfigException.create("docsPath cannot be null");
+        }
+    }
     /**
-     * 获取文档目录下所有api版本
+     * 获取历史版本列表
      */
-    private static void initApiVersions() {
+    private static void obtainVersionHistoryList() {
         File docDir = new File(docPath).getParentFile();
-        String[] diffVersionApiDirs = docDir.list((dir, name) -> dir.isDirectory() && !name.startsWith("."));
-        if (diffVersionApiDirs != null) {
-            Collections.addAll(DocContext.apiVersionList, diffVersionApiDirs);
+        String[] history = docDir.list((dir, name) -> dir.isDirectory() && !name.startsWith("."));
+        if (history != null) {
+            Collections.addAll(DocContext.versionList, history);
         }
     }
 
-    private static void findOutControllers() {
-        controllerParser = new SpringControllerParser();
+    private static void findAndParseController() {
         for (String javaSrcPath : getJavaSrcPaths()) {
             LogUtils.info("start find controllers in path : %s", javaSrcPath);
-            compilationUnitMap.putAll(Utils.scan(new File(javaSrcPath)));
+            Collection<File> files = FileUtils.listFiles(new File(javaSrcPath), new String[]{"java"}, true);
+            if (CollectionUtils.isNotEmpty(files)) {
+                files.forEach(f -> {
+                    CompilationUnit unit = ParseUtils.compilationUnit(f);
+                    boolean validController = unit.findAll(ClassOrInterfaceDeclaration.class).stream()
+                            .anyMatch(cd -> cd.isAnnotationPresent(Controller.class) || cd.isAnnotationPresent(RestController.class));
+                    if (validController) {
+                        compilationUnitMap.put(f, unit);
+                    }
+                });
+            }
         }
     }
 
@@ -109,32 +124,6 @@ public class DocContext {
         return new File(DocContext.getDocPath() + "apiDoc.log");
     }
 
-    /**
-     * get project path
-     */
-    public static String getProjectPath() {
-        return projectPath;
-    }
-
-    /**
-     * 设置项目路径
-     */
-    private static void setProjectPath() {
-        if (StringUtils.isEmpty(config.getProjectPath())) {
-            throw ConfigException.create("projectDir cannot be null");
-        }
-        File file = new File(config.getProjectPath());
-        if (!file.exists()) {
-            throw ConfigException.create("projectDir is not valid");
-        }
-        DocContext.projectPath = file.getAbsolutePath() + File.separator;
-    }
-
-    /**
-     * api docs output path
-     *
-     * @return
-     */
     public static String getDocPath() {
         return docPath;
     }
@@ -143,18 +132,10 @@ public class DocContext {
      * 设置文档输出路径
      */
     private static void setDocPath() {
-        if (StringUtils.isEmpty(config.getDocsPath())) {
-            throw ConfigException.create("docsPath cannot be null");
-        }
-        File docDir = Utils.createFileIfAbsent(config.getDocsPath()  + File.separator + config.getApiVersion());
+        File docDir = Utils.createFileIfAbsent(config.getDocsPath()  + File.separator + config.getVersion());
         DocContext.docPath = docDir.getAbsolutePath() + File.separator;
     }
 
-    /**
-     * get java src paths
-     *
-     * @return
-     */
     public static List<String> getJavaSrcPaths() {
         return javaSrcPaths;
     }
@@ -179,17 +160,16 @@ public class DocContext {
         return DocContext.config;
     }
 
-    public static String getCurrentApiVersion() {
-        return currentApiVersion;
+    public static String getCurrentVersion() {
+        return currentVersion;
     }
 
-    public static List<String> getApiVersionList() {
-        return apiVersionList;
+    public static List<String> getVersionList() {
+        return versionList;
     }
 
     public static List<ControllerNode> getLastVersionControllerNodes() {
         return lastVersionControllerNodes;
     }
-
 
 }

@@ -30,22 +30,18 @@ public class HtmlControllerDocBuilder implements IControllerDocBuilder {
                 reqNode.setAndroidCodePath(javaSrcUrl);
             }
         }
-        final Template ctrlTemplate = getControllerTpl();
-        final File docFile = new File(DocContext.getDocPath(), controllerNode.getDocFileName());
-        FileWriter docFileWriter = new FileWriter(docFile);
         Map<String, Object> data = new HashMap<>();
         data.put("controllerNodeList", DocContext.getControllerNodeList());
         data.put("controller", controllerNode);
-        data.put("currentApiVersion", DocContext.getCurrentApiVersion());
-        data.put("apiVersionList", DocContext.getApiVersionList());
+        data.put("currentApiVersion", DocContext.getCurrentVersion());
+        data.put("apiVersionList", DocContext.getVersionList());
         data.put("projectName", DocContext.getDocsConfig().getProjectName());
 
-        try {
-            ctrlTemplate.process(data, docFileWriter);
+        final File docFile = new File(DocContext.getDocPath(), controllerNode.getDocFileName());
+        try (FileWriter docFileWriter = new FileWriter(docFile)) {
+            getControllerTpl().process(data, docFileWriter);
         } catch (TemplateException ex) {
             ex.printStackTrace();
-        } finally {
-            Utils.closeSilently(docFileWriter);
         }
         return Utils.streamToString(new FileInputStream(docFile));
     }

@@ -8,11 +8,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 
-/**
- * a simple logger
- *
- * @author yeguozhong yedaxia.github.com
- */
 public class LogUtils {
 
     private static final Logger LOGGER = Logger.getGlobal();

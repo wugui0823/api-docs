@@ -1,8 +1,16 @@
 package com.wugui.docs.util;
 
 import com.github.javaparser.JavaParser;
-import com.github.javaparser.ast.*;
-import com.github.javaparser.ast.body.*;
+import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.ImportDeclaration;
+import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.NodeList;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.EnumConstantDeclaration;
+import com.github.javaparser.ast.body.EnumDeclaration;
+import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.Parameter;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.expr.AnnotationExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
@@ -38,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class ParseUtils {
 
@@ -99,20 +108,15 @@ public class ParseUtils {
                 .stream()
                 .filter(im -> im.getNameAsString().endsWith("." + className))
                 .findFirst();
-        //found in import
         if(idOp.isPresent()){
             cPaths = idOp.get().getNameAsString().split("\\.");
             return backTraceJavaFileByName(javaSrcPath, cPaths);
         }
 
-        //inner class in this file
         if(getInnerClassNode(compilationUnit, className).isPresent()){
             return inJavaFile;
         }
-
         cPaths = className.split("\\.");
-
-        //current directory
         if(cPaths.length == 1){
             File[] javaFiles = inJavaFile.getParentFile().listFiles(new FilenameFilter() {
                 @Override
@@ -196,7 +200,8 @@ public class ParseUtils {
         if(cPaths.length == 0){
             return null;
         }
-        String javaFilePath = javaSrcPath + Utils.joinArrayString(cPaths, "/") +".java";
+        String path = Arrays.stream(cPaths).collect(Collectors.joining(File.separator));
+        String javaFilePath = javaSrcPath + path +".java";
         File javaFile = new File(javaFilePath);
         if(javaFile.exists() && javaFile.isFile()){
             return javaFile;
@@ -342,10 +347,13 @@ public class ParseUtils {
                             fieldNode.setClassNode(classNode);
 
                             classNode.addChildNode(fieldNode);
-                            fd.getComment().ifPresent(c -> fieldNode.setDescription(Utils.cleanCommentContent(c.getContent())));
-
+                            fd.getComment().ifPresent(c ->
+                                    fieldNode.setDescription(StringUtils.remove(c.getContent(), '*').replace("\n", "").trim()
+                            ));
                             if(StringUtils.isEmpty(fieldNode.getDescription())){
-                                field.getComment().ifPresent(c -> fieldNode.setDescription(Utils.cleanCommentContent(c.getContent())));
+                                field.getComment().ifPresent(c ->
+                                        StringUtils.remove(c.getContent(), '*').replace("\n", "").trim()
+                                );
                             }
 
                             fd.getAnnotationByName("RapMock").ifPresent(an -> {
@@ -355,16 +363,16 @@ public class ParseUtils {
                                     for(MemberValuePair mvPair : normalAnExpr.getPairs()){
                                         String name = mvPair.getName().asString();
                                         if("limit".equalsIgnoreCase(name)){
-                                            mockNode.setLimit(Utils.removeQuotations(mvPair.getValue().toString()));
+                                            mockNode.setLimit(StringUtils.remove(mvPair.getValue().toString(), '\n'));
                                         }else if("value".equalsIgnoreCase(name)){
-                                            mockNode.setValue(Utils.removeQuotations(mvPair.getValue().toString()));
+                                            mockNode.setValue(StringUtils.remove(mvPair.getValue().toString(), '\n'));
                                         }
                                     }
                                     fieldNode.setMockNode(mockNode);
                                 }else if(an instanceof SingleMemberAnnotationExpr){
                                     SingleMemberAnnotationExpr singleAnExpr = (SingleMemberAnnotationExpr)an;
                                     MockNode mockNode = new MockNode();
-                                    mockNode.setValue(Utils.removeQuotations(singleAnExpr.getMemberValue().toString()));
+                                    mockNode.setValue(StringUtils.remove(singleAnExpr.getMemberValue().toString(), '\n'));
                                     fieldNode.setMockNode(mockNode);
                                 }
                             });
@@ -664,70 +672,64 @@ public class ParseUtils {
 
 
     private static void parseResponseNodeByReflection(File inJavaFile, String className, ClassNode classNode){
-
         Class modelClass = getClassInJavaFile(inJavaFile, className);
+        if(modelClass != null) {
+            return;
+        }
+        if(classNode instanceof ResponseNode){
+            ResponseNode responseNode = (ResponseNode) classNode;
+            responseNode.reset();
+            // 解析方法返回值泛型信息
+            Class controllerClass = ParseUtils.getClassInJavaFile(inJavaFile, inJavaFile.getName().replace(".java",""));
+            if(controllerClass != null){
+                RequestNode requestNode = responseNode.getRequestNode();
+                try{
+                    // 获取该api对应的请求方法
+                    Method apiMethod = null;
 
-        if(modelClass != null){
-
-            if(classNode instanceof ResponseNode){
-
-                ResponseNode responseNode = (ResponseNode) classNode;
-                responseNode.reset();
-
-                // 解析方法返回值泛型信息
-                Class controllerClass = ParseUtils.getClassInJavaFile(inJavaFile, inJavaFile.getName().replace(".java",""));
-                if(controllerClass != null){
-                    RequestNode requestNode = responseNode.getRequestNode();
-                    try{
-                        // 获取该api对应的请求方法
-                        Method apiMethod = null;
-
-                        for(Method method : controllerClass.getDeclaredMethods()){
-                            if(method.getName().equals(requestNode.getMethodName())){
-                                if(method.getAnnotations() != null){
-                                    for(Annotation annotation: method.getAnnotations()){
-                                        String reqUrl = requestNode.getUrl();
-                                        if(reqUrl.contains("/")){
-                                            reqUrl = reqUrl.substring(reqUrl.lastIndexOf("/") + 1);
-                                        }
-                                        if(annotation.toString().contains(reqUrl)){
-                                            apiMethod = method;
-                                        }
+                    for(Method method : controllerClass.getDeclaredMethods()){
+                        if(method.getName().equals(requestNode.getMethodName())){
+                            if(method.getAnnotations() != null){
+                                for(Annotation annotation: method.getAnnotations()){
+                                    String reqUrl = requestNode.getUrl();
+                                    if(reqUrl.contains("/")){
+                                        reqUrl = reqUrl.substring(reqUrl.lastIndexOf("/") + 1);
+                                    }
+                                    if(annotation.toString().contains(reqUrl)){
+                                        apiMethod = method;
                                     }
                                 }
                             }
                         }
-
-                        if(apiMethod != null){
-                            java.lang.reflect.Type returnType = apiMethod.getGenericReturnType();
-                            //如果是ResponseEntity, 则取里面一层
-                            if(apiMethod.getReturnType().getName().equals("org.springframework.http.ResponseEntity")){
-                                java.lang.reflect.Type[] responseEntityTypeArguments = ((ParameterizedType)apiMethod.getGenericReturnType()).getActualTypeArguments();
-                                if(responseEntityTypeArguments.length == 1){
-                                    if( responseEntityTypeArguments[0] instanceof ParameterizedType){
-                                        ParameterizedType parameterizedType = (ParameterizedType)responseEntityTypeArguments[0];
-                                        if(parameterizedType.getRawType() instanceof Class){
-                                            ParseUtils.parseGenericNodesInType((Class) parameterizedType.getRawType(), parameterizedType, responseNode.getGenericNodes());
-                                        }
-                                    }
-                                }
-                            }else{
-                                ParseUtils.parseGenericNodesInType(apiMethod.getReturnType(), returnType, responseNode.getGenericNodes());
-                            }
-
-                        }
-
-                    }catch (Exception e2){
-                        LogUtils.error("get method error", e2);
                     }
+
+                    if(apiMethod != null){
+                        java.lang.reflect.Type returnType = apiMethod.getGenericReturnType();
+                        //如果是ResponseEntity, 则取里面一层
+                        if(apiMethod.getReturnType().getName().equals("org.springframework.http.ResponseEntity")){
+                            java.lang.reflect.Type[] responseEntityTypeArguments = ((ParameterizedType)apiMethod.getGenericReturnType()).getActualTypeArguments();
+                            if(responseEntityTypeArguments.length == 1){
+                                if( responseEntityTypeArguments[0] instanceof ParameterizedType){
+                                    ParameterizedType parameterizedType = (ParameterizedType)responseEntityTypeArguments[0];
+                                    if(parameterizedType.getRawType() instanceof Class){
+                                        ParseUtils.parseGenericNodesInType((Class) parameterizedType.getRawType(), parameterizedType, responseNode.getGenericNodes());
+                                    }
+                                }
+                            }
+                        }else{
+                            ParseUtils.parseGenericNodesInType(apiMethod.getReturnType(), returnType, responseNode.getGenericNodes());
+                        }
+                    }
+
+                }catch (Exception e2){
+                    LogUtils.error("get method error", e2);
                 }
             }
-
-            // 使用反射解析字段
-            if(DocContext.getDocsConfig().getOpenReflection()){
-                classNode.setModelClass(modelClass);
-                parseClassNodeByReflection(classNode);
-            }
+        }
+        // 使用反射解析字段
+        if(DocContext.getDocsConfig().getOpenReflection()){
+            classNode.setModelClass(modelClass);
+            parseClassNodeByReflection(classNode);
         }
     }
 
