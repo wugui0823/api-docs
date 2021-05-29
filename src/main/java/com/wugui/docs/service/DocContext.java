@@ -38,6 +38,8 @@ import java.util.stream.Collectors;
 public class DocContext {
     /** 生产文档路径 */
     private static String docPath;
+    /** 项目根目录 */
+    private static String javaRootPath;
     private static List<String> javaSrcPaths = new ArrayList<>();
     private static AbsControllerParser controllerParser;
     /** 扫描到的Controller集合 */
@@ -53,22 +55,30 @@ public class DocContext {
 
     public static void init(DocsConfig config) {
         DocContext.config = config;
+        DocContext.javaRootPath = config.getRootPath();
         configCheck();
         currentVersion = config.getVersion();
         setDocPath();
         obtainVersionHistoryList();
         javaSrcPaths.addAll(config.getJavaSrcPaths());
         controllerParser = new SpringControllerParser();
-        findAndParseController();
-        obtainNewerVersionController();
+        findAndParseApi();
+        obtainNewerVersionApi();
     }
 
-    private static void obtainNewerVersionController() {
+    /**
+     * 获取最后一个版本的所有接口信息
+     */
+    private static void obtainNewerVersionApi() {
         File docDir = new File(docPath).getParentFile();
+        // 获取一级目录
         File[] childDirs = docDir.listFiles(f -> f.isDirectory());
         if (ArrayUtils.isNotEmpty(childDirs)) {
-            List<String> collect = Arrays.stream(childDirs).map(f -> f.getName())
-                    .sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+            // 按版本号降序,和当前对比，取第一个不同的版本号做为最后一个版本号
+            List<String> collect = Arrays.stream(childDirs)
+                    .map(f -> f.getName())
+                    .sorted(Comparator.reverseOrder())
+                    .collect(Collectors.toList());
             for (String childDir : collect) {
                 if (!StringUtils.equals(currentVersion, childDir)) {
                     lastVersionControllerNodes = CacheUtils.getControllerNodes(childDir);
@@ -77,17 +87,22 @@ public class DocContext {
             }
         }
     }
+
+    /**
+     * 入参检验
+     */
     private static void configCheck() {
         if (StringUtils.isEmpty(config.getVersion())) {
-            throw new ConfigException("version cannot be null");
+            throw ConfigException.create("version cannot be null");
         }
         if (StringUtils.isEmpty(config.getProjectName())) {
-            throw new ConfigException("projectName cannot be null");
+            throw ConfigException.create("projectName cannot be null");
         }
         if (StringUtils.isEmpty(config.getDocsPath())) {
             throw ConfigException.create("docsPath cannot be null");
         }
     }
+
     /**
      * 获取历史版本列表
      */
@@ -99,9 +114,13 @@ public class DocContext {
         }
     }
 
-    private static void findAndParseController() {
+    /**
+     * 找出符合接口定义的文件并解析
+     */
+    private static void findAndParseApi() {
         for (String javaSrcPath : getJavaSrcPaths()) {
             LogUtils.info("start find controllers in path : %s", javaSrcPath);
+            // 获取文件夹下所有.java的文件
             Collection<File> files = FileUtils.listFiles(new File(javaSrcPath), new String[]{"java"}, true);
             if (CollectionUtils.isNotEmpty(files)) {
                 files.forEach(f -> {
@@ -126,6 +145,14 @@ public class DocContext {
 
     public static String getDocPath() {
         return docPath;
+    }
+
+    public static String getJavaRootPath() {
+        return javaRootPath;
+    }
+
+    public static File getDocPathFile() {
+        return new File(docPath);
     }
 
     /**

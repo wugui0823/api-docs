@@ -10,6 +10,7 @@ import com.wugui.docs.util.Utils;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -43,7 +44,7 @@ public class HtmlControllerDocBuilder implements IControllerDocBuilder {
         } catch (TemplateException ex) {
             ex.printStackTrace();
         }
-        return Utils.streamToString(new FileInputStream(docFile));
+        return FileUtils.readFileToString(docFile);
     }
 
     private Template getControllerTpl() throws IOException {

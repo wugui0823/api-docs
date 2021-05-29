@@ -1,6 +1,5 @@
 package com.wugui.docs.parser;
 
-import com.wugui.docs.service.DocContext;
 import com.wugui.docs.util.Utils;
 import org.apache.commons.lang.StringUtils;
 
@@ -141,12 +140,10 @@ public class ClassNode {
     }
 
     private void toJsonApiMap(FieldNode fieldNode, Map<String, Object> map){
-
         if(fieldNode.getLoopNode()){
             map.put(fieldNode.getName(), getFieldDesc(fieldNode));
             return;
         }
-
         ClassNode thisFieldNode = fieldNode.getChildNode();
         if(thisFieldNode != null){
             Map<String, Object> childMap = new LinkedHashMap<>();

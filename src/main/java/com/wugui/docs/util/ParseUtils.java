@@ -27,11 +27,12 @@ import com.wugui.docs.parser.MockNode;
 import com.wugui.docs.parser.RequestNode;
 import com.wugui.docs.parser.ResponseNode;
 import com.wugui.docs.service.DocContext;
+import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FilenameFilter;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
@@ -75,10 +76,7 @@ public class ParseUtils {
         typeMap.put("enum", "enum");
     }
 
-    /**
-     * means a model class type
-     */
-    private static final String TYPE_MODEL = "_object";
+    public static final String TYPE_MODEL = "_object";
 
     /**
      * search File of className in the java file
@@ -88,111 +86,87 @@ public class ParseUtils {
      * @return
      */
     public static File searchJavaFile(File inJavaFile, String className) {
-       File file = null;
-       for(String javaSrcPath : DocContext.getJavaSrcPaths()){
-           file = searchJavaFileInner(javaSrcPath, inJavaFile, className);
-           if(file != null){
-               break;
-           }
-       }
-       if(file == null){
-           throw new JavaFileNotFoundException("Cannot find java file , in java file : " + inJavaFile.getAbsolutePath() + ", className : " +className);
-       }
-       return file;
+        File file = searchJavaFileInner(DocContext.getJavaRootPath(), inJavaFile, className);
+        if (file == null) {
+            throw new JavaFileNotFoundException("Cannot find java file , in java file : " + inJavaFile.getAbsolutePath() + ", className : " + className);
+        }
+        return file;
     }
 
+    /**
+     * 从java文件查看对象是否存在
+     * @param javaSrcPath
+     * @param inJavaFile
+     * @param className
+     * @return
+     */
     private static File searchJavaFileInner(String javaSrcPath, File inJavaFile, String className){
-        CompilationUnit compilationUnit = compilationUnit(inJavaFile);
-        String[] cPaths;
-        Optional<ImportDeclaration> idOp = compilationUnit.getImports()
-                .stream()
-                .filter(im -> im.getNameAsString().endsWith("." + className))
-                .findFirst();
-        if(idOp.isPresent()){
-            cPaths = idOp.get().getNameAsString().split("\\.");
-            return backTraceJavaFileByName(javaSrcPath, cPaths);
+        // 从缓存中获取已解析完成的对象
+        CompilationUnit cu = DocContext.getCompilationUnitMap().get(inJavaFile);
+        String[] packagePaths;
+        // 1.从import中是否导入该对象
+        NodeList<ImportDeclaration> imports = cu.getImports();
+        Optional<ImportDeclaration> first = imports.stream()
+                .filter(im -> im.getNameAsString().endsWith("." + className)).findFirst();
+        // import存在，直接返回该文件
+        if (first.isPresent()) {
+            String[] dot = Utils.splitByDot(first.get().getNameAsString());
+            return backTraceJavaFileByName(javaSrcPath, dot);
         }
-
-        if(getInnerClassNode(compilationUnit, className).isPresent()){
+        // 2.没有import该对象，可能是内部类
+        if(getInnerClass(cu, className).isPresent()){
             return inJavaFile;
         }
-        cPaths = className.split("\\.");
-        if(cPaths.length == 1){
-            File[] javaFiles = inJavaFile.getParentFile().listFiles(new FilenameFilter() {
-                @Override
-                public boolean accept(File dir, String name) {
-                    return name.equals(className + ".java");
-                }
-            });
-            if(javaFiles != null && javaFiles.length == 1){
+        packagePaths = Utils.splitByDot(className);
+        // 3.可能和接口属于同一个包下
+        final String firstPath = Utils.concatJava(packagePaths[0]);
+        File[] javaFiles = inJavaFile.getParentFile().listFiles((dir, name) -> StringUtils.equals(name, firstPath));
+        if (ArrayUtils.isNotEmpty(javaFiles)) {
+            // 直接引用 或 内部类引用
+            if (packagePaths.length == 1 || getInnerClass(compilationUnit(javaFiles[0]), className).isPresent()) {
                 return javaFiles[0];
             }
-        }else{
-            final String firstPath = cPaths[0];
-            //same package inner class
-            File[] javaFiles = inJavaFile.getParentFile().listFiles(new FilenameFilter() {
-                @Override
-                public boolean accept(File dir, String name) {
-                    int i = name.lastIndexOf(".java");
-                    if(i == -1){
-                        return false;
-                    }
-                    return name.substring(0, i).equals(firstPath);
-                }
-            });
-
-            if(javaFiles != null && javaFiles.length > 0){
-                File javaFile = javaFiles[0];
-                if(getInnerClassNode(compilationUnit(javaFile), className).isPresent()){
+        }
+        // 4.完整的类名引用(如: java.util.List)
+        File javaFile = backTraceJavaFileByName(javaSrcPath, packagePaths);
+        if(javaFile != null){
+            return javaFile;
+        }
+        // 5.可能是import java.util.*
+        for (ImportDeclaration id : imports) {
+            // toString返回的是java.util.*，getNameAsString返回的是java.util
+            if (id.toString().endsWith(".*")) {
+                packagePaths = Utils.splitByDot(id.getNameAsString() + "." + className);
+                javaFile = backTraceJavaFileByName(javaSrcPath, packagePaths);
+                if (javaFile != null) {
                     return javaFile;
                 }
             }
         }
-        //maybe a complete class name
-        File javaFile = backTraceJavaFileByName(javaSrcPath, cPaths);
-        if(javaFile != null){
-            return javaFile;
-        }
-        //.* at import
-        NodeList<ImportDeclaration> importDeclarations = compilationUnit.getImports();
-        if(importDeclarations.isNonEmpty()){
-            for(ImportDeclaration importDeclaration : importDeclarations){
-                if(importDeclaration.toString().contains(".*")){
-                    String packageName = importDeclaration.getNameAsString();
-                    cPaths = (packageName + "." + className).split("\\.");
-                    javaFile = backTraceJavaFileByName(javaSrcPath, cPaths);
-                    if(javaFile != null){
-                        break;
-                    }
-                }
-            }
-        }
-        // inner class in other package
-        if(cPaths.length > 1){
+        // 6.其他包下的内部类
+        if(packagePaths.length > 1){
             try{
-                File innerClassFile = searchJavaFile(inJavaFile, cPaths[cPaths.length - 2]);
-                if(getInnerClassNode(compilationUnit(innerClassFile), cPaths[cPaths.length - 1]).isPresent()){
+                File innerClassFile = searchJavaFile(inJavaFile, packagePaths[packagePaths.length - 2]);
+                if(getInnerClass(compilationUnit(innerClassFile), packagePaths[packagePaths.length - 1]).isPresent()){
                     return innerClassFile;
                 }
             }catch (JavaFileNotFoundException ex){
-                // just ignore
             }
         }
-        return javaFile;
+        return null;
     }
 
     /**
-     * get inner class node
+     * 根据类型获取内部类
      *
-     * @param compilationUnit
+     * @param cu
      * @param className
      * @return
      */
-    private static Optional<TypeDeclaration> getInnerClassNode(CompilationUnit compilationUnit , String className){
-        return compilationUnit.findAll(TypeDeclaration.class)
-                .stream()
-                .filter( c -> c instanceof ClassOrInterfaceDeclaration ||  c instanceof EnumDeclaration)
-                .filter( c -> className.equals(c.getNameAsString()))
+    private static Optional<TypeDeclaration> getInnerClass(CompilationUnit cu , String className){
+        return cu.findAll(TypeDeclaration.class).stream()
+                .filter(c -> className.equals(c.getNameAsString())
+                        && (c instanceof ClassOrInterfaceDeclaration || c instanceof EnumDeclaration))
                 .findFirst();
     }
 
@@ -201,8 +175,7 @@ public class ParseUtils {
             return null;
         }
         String path = Arrays.stream(cPaths).collect(Collectors.joining(File.separator));
-        String javaFilePath = javaSrcPath + path +".java";
-        File javaFile = new File(javaFilePath);
+        File javaFile = new File(Utils.concatJava(javaSrcPath + path));
         if(javaFile.exists() && javaFile.isFile()){
             return javaFile;
         }else{
@@ -227,50 +200,73 @@ public class ParseUtils {
     }
 
     /**
-     * parse class model java file
      *
      * @param inJavaFile
      * @param classType 携带了类的泛型信息
      */
     public static void parseClassNodeByType(File inJavaFile, ClassNode rootClassNode, Type classType){
-
-        if(classType.getParentNode().isPresent()
-                && classType.getParentNode().get() instanceof ArrayType){
+        if (classType.getParentNode().isPresent() && isArrayType(classType.getParentNode().get())) {
             rootClassNode.setList(true);
-        }else if(classType instanceof ArrayType){
+        } else if (isArrayType(classType)) {
             rootClassNode.setList(true);
             classType = ((ArrayType) classType).getComponentType();
-        }else if(isCollectionType(classType.asString())){
+        } else if (isCollectionType(classType.asString())) {
             rootClassNode.setList(true);
             rootClassNode.setGenericNodes(null);
-            List<ClassOrInterfaceType> collectionType = classType.getChildNodesByType(ClassOrInterfaceType.class);
-            if(collectionType.isEmpty()){
+            List<ClassOrInterfaceType> collectionType = classType.findAll(ClassOrInterfaceType.class);
+            if (CollectionUtils.isEmpty(collectionType)) {
                 System.out.println("We found Collection without specified Class Type, Please check ! java file : " + inJavaFile.getName());
                 rootClassNode.setClassName("Object");
                 return;
-            }else{
-                classType = collectionType.get(0);
             }
+            classType = collectionType.get(0);
         }
-
-        String unifyClassType = unifyType(classType.asString());
-        if(TYPE_MODEL.equals(unifyClassType)){
-            if(classType instanceof  ClassOrInterfaceType){
-
-                String className = ((ClassOrInterfaceType)classType).getName().getIdentifier();
-                rootClassNode.setClassName(className);
-
-                try{
-                    File modelJavaFile = searchJavaFile(inJavaFile, className);
-                    rootClassNode.setClassFileName(modelJavaFile.getAbsolutePath());
-                    parseClassNode(modelJavaFile, rootClassNode);
-                }catch (JavaFileNotFoundException ex) {
-                    parseResponseNodeByReflection(inJavaFile, className, rootClassNode);
-                }
-            }
-        }else{
+        // 判断是不是基础类型
+        String unifyClassType = getType(classType.asString());
+        if (StringUtils.isNotEmpty(unifyClassType)) {
             rootClassNode.setClassName(unifyClassType);
+            return;
         }
+        if(classType instanceof  ClassOrInterfaceType){
+            String className = ((ClassOrInterfaceType)classType).getName().getIdentifier();
+            rootClassNode.setClassName(className);
+            try{
+                File modelJavaFile = searchJavaFile(inJavaFile, className);
+                rootClassNode.setClassFileName(modelJavaFile.getAbsolutePath());
+                parseClassNode(modelJavaFile, rootClassNode);
+            }catch (JavaFileNotFoundException ex) {
+                parseResponseNodeByReflection(inJavaFile, className, rootClassNode);
+            }
+        }
+    }
+
+    public static String getParamType(Parameter p) {
+        Type pType = p.getType();
+        // 数组
+        if (ParseUtils.isArrayType(pType)) {
+            pType = ((ArrayType) pType).getComponentType();
+            return ParseUtils.unifyType(pType.asString()) + "[]";
+        } else if (ParseUtils.isCollectionType(pType.asString())) {
+            List<ClassOrInterfaceType> typeList = pType.findAll(ClassOrInterfaceType.class);
+            if (CollectionUtils.isNotEmpty(typeList)) {
+                return ParseUtils.unifyType(typeList.get(0).asString()) + "[]";
+            } else {
+                return "Object[]";
+            }
+        }
+        return ParseUtils.unifyType(pType.asString());
+    }
+
+    /**
+     * 判断是否是数组类型
+     * @param node
+     * @return
+     */
+    public static boolean isArrayType(Node node) {
+        if (node instanceof ArrayType) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -445,9 +441,9 @@ public class ParseUtils {
 
         Boolean isList;
 
-        if(fieldType.getParentNode().get() instanceof ArrayType){
+        if(isArrayType(fieldType.getParentNode().get())){
             isList = true;
-        }else if(fieldType instanceof ArrayType){
+        }else if(isArrayType(fieldType)){
             isList = true;
             fieldType = ((ArrayType) fieldType).getComponentType();
             GenericNode arrayTypeNode = fieldNode.getClassNode().getGenericNode(fieldType.asString());
@@ -502,7 +498,7 @@ public class ParseUtils {
             ((ClassOrInterfaceType)fieldType).getTypeArguments().ifPresent(typeList->typeList.forEach(argType->{
                 GenericNode childClassGenericNode = new GenericNode();
 
-                if(argType instanceof ArrayType){
+                if(isArrayType(argType)){
                     GenericNode arrayTypeNode = fieldNode.getClassNode().getGenericNode(((ArrayType) argType).getComponentType().asString());
                     if(arrayTypeNode != null){
                         ((ArrayType) argType).setComponentType(arrayTypeNode.getClassType());
@@ -575,19 +571,11 @@ public class ParseUtils {
         return TYPE_MODEL.equals(unifyType(className));
     }
 
-    /**
-     * 判断是否是枚举类型
-     *
-     * @return
-     */
-    public static boolean isEnum(File inJavaFile, String className){
-        try{
-            File javaFile = searchJavaFile(inJavaFile, className);
-            return compilationUnit(javaFile).getEnumByName(className).isPresent();
-        }catch (Exception ex){
-            return false;
-        }
-    }
+    public static String getType(String className){
+        String[] cPaths = className.replace("[]","").split("\\.");
+        String rawType = cPaths[cPaths.length - 1].toLowerCase();
+        return typeMap.get(rawType);
+}
 
     public static String unifyType(String className){
         String[] cPaths = className.replace("[]","").split("\\.");
@@ -597,7 +585,7 @@ public class ParseUtils {
     }
 
     /**
-     *  is implements from Collection or not
+     *  判断是不是集合
      *
      * @param className
      * @return
@@ -623,17 +611,16 @@ public class ParseUtils {
     }
 
     /**
-     * like HttpServletRequest, HttpServletSession should be auto ignore
-     * @param param
+     * 判断参数是否为Servlet类型
+     * @param paramTypeName
      * @return
      */
-    public static boolean isExcludeParam(Parameter param){
-        List<String> httpServlets = new ArrayList<String>(){{
-            add("HttpServletRequest");
-            add("HttpServletResponse");
-            add("HttpSession");
-        }};
-        return httpServlets.contains(param.getTypeAsString());
+    public static boolean isServletObject(String paramTypeName){
+        List<String> httpServlets = new ArrayList<String>(3);
+        httpServlets.add("HttpServletRequest");
+        httpServlets.add("HttpServletResponse");
+        httpServlets.add("HttpSession");
+        return httpServlets.contains(paramTypeName);
     }
 
     /**

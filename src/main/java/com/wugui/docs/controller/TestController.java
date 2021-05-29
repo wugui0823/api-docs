@@ -55,4 +55,14 @@ public class TestController {
         System.out.println("hello2 " + name);
         return ResultBuilder.success(new UserInfo());
     }
+
+    /**
+     * 泛型返回用例222
+     * @param userInfo
+     * @return
+     */
+    @GetMapping("login2")
+    public Result<UserInfo> loginUser2(UserInfo userInfo) {
+        return ResultBuilder.success(new UserInfo());
+    }
 }

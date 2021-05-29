@@ -1,177 +1,99 @@
 package com.wugui.docs.parser;
 
-import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.expr.ArrayInitializerExpr;
-import com.github.javaparser.ast.expr.BooleanLiteralExpr;
-import com.github.javaparser.ast.expr.Expression;
-import com.github.javaparser.ast.expr.MarkerAnnotationExpr;
-import com.github.javaparser.ast.expr.NormalAnnotationExpr;
-import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
-import com.github.javaparser.ast.expr.StringLiteralExpr;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
+import com.wugui.docs.parser.annotation.ClassMappingParserFactory;
+import com.wugui.docs.parser.annotation.MethodMappingParserFactory;
+import com.wugui.docs.parser.annotation.ParamMappingParserFactory;
 import com.wugui.docs.util.ParseUtils;
-import com.wugui.docs.util.Utils;
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class SpringControllerParser extends AbsControllerParser {
 
-    private final static List<String> MAPPING_ANNOTATIONS = new ArrayList<String>(){{
-        add("GetMapping");
-        add("PostMapping");
-        add("PutMapping");
-        add("PatchMapping");
-        add("DeleteMapping");
-        add("RequestMapping");
-    }};
-
     @Override
-    protected void beforeHandleController(ControllerNode controllerNode, ClassOrInterfaceDeclaration clazz) {
-        clazz.getAnnotationByClass(RequestMapping.class).ifPresent(a -> {
-            if (a instanceof SingleMemberAnnotationExpr) {
-                String baseUrl = ((SingleMemberAnnotationExpr) a).getMemberValue().toString();
-                controllerNode.setBaseUrl(StringUtils.remove(baseUrl, '\n'));
-            } else if (a instanceof NormalAnnotationExpr) {
-                ((NormalAnnotationExpr) a).getPairs().stream()
-                        .filter(v -> isUrlPathKey(v.getNameAsString()))
-                        .findFirst()
-                        .ifPresent(p -> {
-                            controllerNode.setBaseUrl(StringUtils.remove(p.getValue().toString(), '\n'));
-                        });
-            }
-        });
+    protected void extractBaseUrl(ClassOrInterfaceDeclaration clazz) {
+        // 如果有RequestMapping注解，获取自定义的路径
+        clazz.getAnnotationByClass(RequestMapping.class).ifPresent(e ->
+                ClassMappingParserFactory.parse(getControllerNode(), e)
+        );
     }
 
     @Override
-    protected boolean shouldIgnoreMethod(MethodDeclaration m) {
-        // 没有 Mapping 注解的忽略
-        List<String> collect = m.getAnnotations().stream().map(e -> e.getNameAsString()).collect(Collectors.toList());
-        boolean isContainMapping = CollectionUtils.containsAny(collect, MAPPING_ANNOTATIONS);
-        return !isContainMapping;
+    protected boolean skipMethod(MethodDeclaration m) {
+        // 如果不存在@xxxMapping,则跳过解析该方法
+        long mappingCount = m.getAnnotations().stream()
+                .filter(e -> StringUtils.endsWith(e.getNameAsString(), "Mapping")).count();
+        return mappingCount > 0 ? false : true;
     }
 
     @Override
     protected void afterHandleMethod(RequestNode requestNode, MethodDeclaration md) {
+        // 解析方法注解
         md.getAnnotations().forEach(an -> {
             String name = an.getNameAsString();
-            if (Arrays.asList(MAPPING_ANNOTATIONS).contains(name)) {
-                String method = Utils.getClassName(name).toUpperCase().replace("MAPPING", "");
-                if (!"REQUEST".equals(method)) {
+            // 解析@xxxMapping注解
+            if (StringUtils.endsWith(name, "Mapping")) {
+                // 获取Http提交方式
+                String method = StringUtils.remove(name, "Mapping").toUpperCase();
+                // 如果不是RequestMapping注解，前缀就是method，如果@GetMapping
+                if (!StringUtils.equals("REQUEST", method)) {
                     requestNode.addMethod(RequestMethod.valueOf(method).name());
                 }
-
-                if (an instanceof NormalAnnotationExpr) {
-                    ((NormalAnnotationExpr) an).getPairs().forEach(p -> {
-                        String key = p.getNameAsString();
-                        if (isUrlPathKey(key)) {
-                            requestNode.setUrl(StringUtils.remove(p.getValue().toString(), '\n'));
-                        }
-
-                        if ("headers".equals(key)) {
-                            Expression methodAttr = p.getValue();
-                            if (methodAttr instanceof ArrayInitializerExpr) {
-                                NodeList<Expression> values = ((ArrayInitializerExpr) methodAttr).getValues();
-                                for (Node n : values) {
-                                    String[] h = n.toString().split("=");
-                                    requestNode.addHeaderNode(new HeaderNode(h[0], h[1]));
-                                }
-                            } else {
-                                String[] h = p.getValue().toString().split("=");
-                                requestNode.addHeaderNode(new HeaderNode(h[0], h[1]));
-                            }
-                        }
-
-                        if ("method".equals(key)) {
-                            Expression methodAttr = p.getValue();
-                            if (methodAttr instanceof ArrayInitializerExpr) {
-                                NodeList<Expression> values = ((ArrayInitializerExpr) methodAttr).getValues();
-                                for (Node n : values) {
-                                    requestNode.addMethod(RequestMethod.valueOf(Utils.getClassName(n.toString())).name());
-                                }
-                            } else {
-                                requestNode.addMethod(RequestMethod.valueOf(Utils.getClassName(p.getValue().toString())).name());
-                            }
-                        }
-                    });
-                }
-                if (an instanceof SingleMemberAnnotationExpr) {
-                    String url = ((SingleMemberAnnotationExpr) an).getMemberValue().toString();
-                    requestNode.setUrl(StringUtils.remove(url, '\n'));
-                }
-                requestNode.setUrl(Utils.getActionUrl(getControllerNode().getBaseUrl(), requestNode.getUrl()));
+                // 解析@XxxMapping注解,设置url、header、method等
+                MethodMappingParserFactory.parse(requestNode, an);
             }
         });
 
         md.getParameters().forEach(p -> {
-            String paraName = p.getName().asString();
-            ParamNode paramNode = requestNode.getParamNodeByName(paraName);
-            if (paramNode != null) {
-
-                p.getAnnotations().forEach(an -> {
-                    String name = an.getNameAsString();
-
-                    // @NotNull, @NotBlank, @NotEmpty
-                    if (ParseUtils.isNotNullAnnotation(name)) {
-                        paramNode.setRequired(true);
-                        return;
-                    }
-
-                    if (!"RequestParam".equals(name) && !"RequestBody".equals(name) && !"PathVariable".equals(name)) {
-                        return;
-                    }
-
-                    if ("RequestBody".equals(name)) {
-                        setRequestBody(paramNode, p.getType());
-                    }
-
-                    // @RequestParam String name
-                    if (an instanceof MarkerAnnotationExpr) {
-                        paramNode.setRequired(true);
-                        return;
-                    }
-
-                    //  @RequestParam("email") String email
-                    if (an instanceof SingleMemberAnnotationExpr) {
-                        paramNode.setName(((StringLiteralExpr) ((SingleMemberAnnotationExpr) an).getMemberValue()).getValue());
-                        return;
-                    }
-
-                    // @RequestParam(name = "email", required = true)
-                    if (an instanceof NormalAnnotationExpr) {
-                        ((NormalAnnotationExpr) an).getPairs().forEach(pair -> {
-                            String exprName = pair.getNameAsString();
-                            if ("required".equals(exprName)) {
-                                Boolean exprValue = ((BooleanLiteralExpr) pair.getValue()).getValue();
-                                paramNode.setRequired(Boolean.valueOf(exprValue));
-                            } else if ("value".equals(exprName)) {
-                                String exprValue = ((StringLiteralExpr) pair.getValue()).getValue();
-                                paramNode.setName(exprValue);
-                            }
-                        });
-                    }
-                });
-
-                //如果参数是个对象
-                if (!paramNode.getJsonBody() && ParseUtils.isModelType(paramNode.getType())) {
-                    ClassNode classNode = new ClassNode();
-                    parseClassNodeByType(classNode, p.getType());
-                    List<ParamNode> paramNodeList = new ArrayList<>();
-                    toParamNodeList(paramNodeList, classNode, "");
-                    requestNode.getParamNodes().remove(paramNode);
-                    requestNode.getParamNodes().addAll(paramNodeList);
+            String paramName = p.getNameAsString();
+            ParamNode paramNode = requestNode.getParamNodeByName(paramName);
+            if (paramNode == null) {
+                return;
+            }
+            // 删除Servlet类型的入参
+            if (ParseUtils.isServletObject(p.getTypeAsString())) {
+                requestNode.getParamNodes().remove(paramNode);
+                return;
+            }
+            // 参数类型
+            paramNode.setType(ParseUtils.getParamType(p));
+            // 解析参数注解
+            p.getAnnotations().forEach(an -> {
+                String name = an.getNameAsString();
+                // 非空校验
+                String[] notNull = {"NotNull", "NotBlank", "NotEmpty"};
+                if (ArrayUtils.contains(notNull, name)) {
+                    paramNode.setRequired(true);
+                    return;
                 }
+                String[] paramAnnotations = {"RequestParam", "RequestBody", "PathVariable"};
+                if (!ArrayUtils.contains(paramAnnotations, name)) {
+                    return;
+                }
+                if ("RequestBody".equals(name)) {
+                    setRequestBody(paramNode, p.getType());
+                }
+                // 解析参数注解
+                ParamMappingParserFactory.parse(paramNode, an);
+            });
+            //如果参数没有加注解且是自定义对象
+            if (!paramNode.getJsonBody() && ParseUtils.isModelType(paramNode.getType())) {
+                ClassNode classNode = new ClassNode();
+                parseClassNodeByType(classNode, p.getType());
+                List<ParamNode> paramNodeList = new ArrayList<>();
+                toParamNodeList(paramNodeList, classNode, "");
+                requestNode.getParamNodes().remove(paramNode);
+                requestNode.getParamNodes().addAll(paramNodeList);
             }
         });
     }
@@ -219,9 +141,5 @@ public class SpringControllerParser extends AbsControllerParser {
                 paramNodeList.add(paramNode);
             }
         });
-    }
-
-    private boolean isUrlPathKey(String name) {
-        return name.equals("path") || name.equals("value");
     }
 }

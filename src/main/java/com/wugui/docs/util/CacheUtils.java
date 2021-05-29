@@ -5,9 +5,9 @@ import com.wugui.docs.parser.ClassNode;
 import com.wugui.docs.parser.ControllerNode;
 import com.wugui.docs.parser.ResponseNode;
 import com.wugui.docs.service.DocContext;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -70,7 +70,7 @@ public class CacheUtils {
             return null;
         }
         try {
-            String cacheStr = Utils.streamToString(new FileInputStream(cacheFile));
+            String cacheStr = FileUtils.readFileToString(cacheFile);
             ControllerNode[] controllerNodes = JSONObject.parseObject(cacheStr, ControllerNode[].class);
             return Arrays.asList(controllerNodes);
         } catch (IOException ex) {

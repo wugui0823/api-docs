@@ -7,6 +7,7 @@ public class DocsConfig {
 
     List<String> javaSrcPaths = new ArrayList<>();
     String docsPath;
+    String rootPath;
     String version;
     String projectName;
     // 是否开启对象反射
@@ -50,5 +51,13 @@ public class DocsConfig {
 
     public void setOpenReflection(Boolean openReflection) {
         this.openReflection = openReflection;
+    }
+
+    public String getRootPath() {
+        return rootPath;
+    }
+
+    public void setRootPath(String rootPath) {
+        this.rootPath = rootPath;
     }
 }

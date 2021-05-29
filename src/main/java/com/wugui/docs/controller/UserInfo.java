@@ -25,4 +25,16 @@ public class UserInfo {
     public void setPassword(String password) {
         this.password = password;
     }
+
+    class Address {
+        private Integer id;
+
+        public Integer getId() {
+            return id;
+        }
+
+        public void setId(Integer id) {
+            this.id = id;
+        }
+    }
 }

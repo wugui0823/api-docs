@@ -1,6 +1,7 @@
 package com.wugui.docs.util;
 
 import com.alibaba.fastjson.JSONObject;
+import org.apache.commons.lang.StringUtils;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -9,10 +10,33 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.util.Arrays;
 
 public class Utils {
 
-    /**
+	public static String concat(String ...text) {
+		StringBuffer content = new StringBuffer();
+		Arrays.stream(text).forEach(content::append);
+		return content.toString();
+	}
+
+	public static String concatJava(String text) {
+		return concat(text, ".java");
+	}
+
+	/**
+	 * 字符串按英文符号.分割成数组
+	 * @param text
+	 * @return
+	 */
+	public static String[] splitByDot(String text) {
+		return StringUtils.split(text, "\\.");
+	}
+	public static String removeQuotation(String text) {
+		return StringUtils.remove(text, "\"");
+	}
+
+	/**
      * object to pretty json
      * @param map
      * @return
@@ -51,58 +75,15 @@ public class Utils {
      */
 	public static String streamToString(InputStream in) throws IOException{
 	    StringBuilder stringBuilder = new StringBuilder();
-        InputStreamReader reader = new InputStreamReader(in, "utf-8");
-        char[] buffer = new char[4096];
-        int bytesRead = -1;
-        while ((bytesRead = reader.read(buffer)) != -1) {
-            stringBuilder.append(buffer, 0, bytesRead);
-        }
-        reader.close();
+	    try (InputStreamReader reader = new InputStreamReader(in, "utf-8");) {
+			char[] buffer = new char[4096];
+			int bytesRead = -1;
+			while ((bytesRead = reader.read(buffer)) != -1) {
+				stringBuilder.append(buffer, 0, bytesRead);
+			}
+		}
 	    return stringBuilder.toString();
     }
-
-	/**
-	 * get url with base url
-	 * @param baseUrl
-	 * @param relativeUrl
-	 * @return
-	 */
-	public static String getActionUrl(String baseUrl, String relativeUrl){
-		if(relativeUrl == null){
-			return "";
-		}
-		if(baseUrl == null){
-			return relativeUrl;
-		}
-		if(baseUrl.endsWith("/")){
-			baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-		}
-		if(!relativeUrl.startsWith("/")){
-			relativeUrl = "/" + relativeUrl;
-		}
-		return baseUrl + relativeUrl;
-	}
-
-    /**
-     * get file name without extension
-     * @param javaFile
-     * @return
-     */
-	public static String getJavaFileName(File javaFile){
-		String fileName = javaFile.getName();
-		return javaFile.getName().substring(0, fileName.lastIndexOf("."));
-	}
-
-	/**
-	 * get simple class name
-	 *
-	 * @param packageClass
-	 * @return
-	 */
-	public static String getClassName(String packageClass){
-		String[] parts = packageClass.split("\\.");
-		return parts[parts.length - 1];
-	}
 
 	/**
 	 * create dirs for file

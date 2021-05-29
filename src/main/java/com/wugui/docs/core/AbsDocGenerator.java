@@ -6,8 +6,8 @@ import com.wugui.docs.parser.ControllerNode;
 import com.wugui.docs.parser.RequestNode;
 import com.wugui.docs.service.DocContext;
 import com.wugui.docs.util.LogUtils;
-import com.wugui.docs.util.Utils;
 import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,20 +25,18 @@ public abstract class AbsDocGenerator {
      AbsDocGenerator(AbsControllerParser controllerParser, IControllerDocBuilder controllerDocBuilder) {
         this.controllerParser = controllerParser;
         this.controllerDocBuilder = controllerDocBuilder;
-        this.initControllerNodes();
+        this.parseControllerNodes();
     }
 
     /**
      * generate api Docs
      */
     public void generateDocs() {
-        LogUtils.info("generate api docs start...");
         generateControllersDocs();
         generateIndex(controllerNodeList);
-        LogUtils.info("generate api docs done !!!");
     }
 
-    private void initControllerNodes(){
+    private void parseControllerNodes(){
         Map<File, CompilationUnit> controllerFiles = DocContext.getCompilationUnitMap();
         for (Map.Entry<File, CompilationUnit> entry : controllerFiles.entrySet()) {
             LogUtils.info("start to parse controller file : %s", entry.getKey().getName());
@@ -46,7 +44,7 @@ public abstract class AbsDocGenerator {
             if (CollectionUtils.isEmpty(controllerNode.getRequestNodes())) {
                 continue;
             }
-            controllerNode.setSrcFileName(entry.getKey().getAbsolutePath());
+            // api对应的html文档名称
             final String docFileName = String.format("%s_%s.html", controllerNode.getPackageName().replace(".", "_"), controllerNode.getClassName());
             controllerNode.setDocFileName(docFileName);
             for (RequestNode requestNode : controllerNode.getRequestNodes()) {
@@ -64,7 +62,7 @@ public abstract class AbsDocGenerator {
                 LogUtils.info("start to generate docs for controller file : %s", controllerNode.getSrcFileName());
                 final String controllerDocs = controllerDocBuilder.buildDoc(controllerNode);
                 docFileLinkList.add(new Link(controllerNode.getDescription(), String.format("%s", controllerNode.getDocFileName())));
-                Utils.writeToDisk(new File(docPath, controllerNode.getDocFileName()), controllerDocs);
+                FileUtils.writeStringToFile(new File(docPath, controllerNode.getDocFileName()), controllerDocs, "utf-8");
                 LogUtils.info("success to generate docs for controller file : %s", controllerNode.getSrcFileName());
             } catch (IOException e) {
                 LogUtils.error("generate docs for controller file : " + controllerNode.getSrcFileName() + " fail", e);

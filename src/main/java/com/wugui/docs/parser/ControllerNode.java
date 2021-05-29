@@ -3,7 +3,7 @@ package com.wugui.docs.parser;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ControllerNode {
+public class ControllerNode extends CommonNode{
 
     private String author;
     private String description;
@@ -13,6 +13,13 @@ public class ControllerNode {
     private List<RequestNode> requestNodes = new ArrayList<>();
     private String srcFileName;
     private String docFileName;
+
+    public ControllerNode() {
+    }
+
+    public ControllerNode(String className) {
+        this.className = className;
+    }
 
     public String getPackageName() {
         return packageName;

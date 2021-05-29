@@ -18,6 +18,10 @@ public class Resources {
         return Resources.class.getResourceAsStream("/" + fileName);
     }
 
+    public static String getTemplateFilePath(String fileName) {
+        return Resources.class.getResource("/" + fileName).getPath();
+    }
+
     /**
      * 获取Freemarker模板文件
      * @param fileName

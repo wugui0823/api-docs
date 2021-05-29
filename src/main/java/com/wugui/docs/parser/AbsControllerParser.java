@@ -5,12 +5,10 @@ import com.github.javaparser.ast.Modifier;
 import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
-import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.VoidType;
-import com.github.javaparser.javadoc.JavadocBlockTag;
 import com.wugui.docs.consts.ChangeFlag;
+import com.wugui.docs.parser.block.BlockTagParserFactory;
 import com.wugui.docs.service.DocContext;
 import com.wugui.docs.util.ParseUtils;
 import com.wugui.docs.util.Utils;
@@ -21,24 +19,24 @@ import java.io.File;
 import java.util.List;
 
 public abstract class AbsControllerParser {
-
-    private CompilationUnit compilationUnit;
-    private ControllerNode controllerNode;
+    /** java源文件 */
     private File javaFile;
+    /** java源文件解析对象 */
+    private CompilationUnit compilationUnit;
+    /** 解析的结果 */
+    private ControllerNode controllerNode;
 
     public ControllerNode parse(File javaFile, CompilationUnit compilationUnit) {
         this.javaFile = javaFile;
         this.compilationUnit = compilationUnit;
-        this.controllerNode = new ControllerNode();
-        String controllerName = Utils.getJavaFileName(javaFile);
-        controllerNode.setClassName(controllerName);
-        compilationUnit.getClassByName(controllerName)
-                .ifPresent(c -> {
-                    beforeHandleController(controllerNode, c);
-                    parseClassDoc(c);
-                    parseMethodDocs(c);
-                });
-
+        String controllerName = javaFile.getName().split("\\.")[0];
+        this.controllerNode = new ControllerNode(controllerName);
+        compilationUnit.getClassByName(controllerName).ifPresent(c -> {
+            extractBaseUrl(c);
+            setClassInfo(c);
+            parseMethodDocs(c);
+        });
+        controllerNode.setSrcFileName(javaFile.getAbsolutePath());
         return controllerNode;
     }
 
@@ -51,10 +49,11 @@ public abstract class AbsControllerParser {
     }
 
     /**
-     * 解析类文件注释(作者和描述)
+     * 解析并设置类文件信息(注释、包名、作者和描述等)
      * @param c
      */
-    private void parseClassDoc(ClassOrInterfaceDeclaration c) {
+    private void setClassInfo(ClassOrInterfaceDeclaration c) {
+        // 设置类包名
         c.getParentNode().get().findFirst(PackageDeclaration.class).ifPresent(pd -> {
             controllerNode.setPackageName(pd.getNameAsString());
         });
@@ -63,91 +62,39 @@ public abstract class AbsControllerParser {
         c.getJavadoc().ifPresent(d -> {
             String description = d.getDescription().toText();
             controllerNode.setDescription(StringUtils.isNotEmpty(description) ? description : c.getNameAsString());
-            if (CollectionUtils.isEmpty(d.getBlockTags())) {
-                return;
-            }
-            for (JavadocBlockTag blockTag : d.getBlockTags()) {
-                if ("author".equalsIgnoreCase(blockTag.getTagName())) {
-                    controllerNode.setAuthor(blockTag.getContent().toText());
-                } else if ("description".equalsIgnoreCase(blockTag.getTagName())) {
-                    controllerNode.setDescription(blockTag.getContent().toText());
-                }
-            }
+            // 解析注释标签
+            d.getBlockTags().forEach(tag -> BlockTagParserFactory.putData(controllerNode, tag));
         });
     }
 
     private void parseMethodDocs(ClassOrInterfaceDeclaration c) {
+        // 获取所有public的方法
         c.findAll(MethodDeclaration.class).stream()
                 .filter(m -> m.getModifiers().contains(Modifier.PUBLIC))
                 .forEach(m -> {
-                    if(shouldIgnoreMethod(m)){
+                    if (skipMethod(m)) {
                         return;
                     }
+                    // 构建
                     RequestNode requestNode = new RequestNode();
                     requestNode.setControllerNode(controllerNode);
                     requestNode.setMethodName(m.getNameAsString());
-                    requestNode.setUrl(requestNode.getMethodName());
+                    requestNode.setUrl(controllerNode + File.separator + requestNode.getMethodName());
                     requestNode.setDescription(requestNode.getMethodName());
                     requestNode.setDeprecated(m.isAnnotationPresent(Deprecated.class));
+                    // 解析方法的注释
                     m.getJavadoc().ifPresent(d -> {
-                        String description = d.getDescription().toText();
-                        requestNode.setDescription(description);
-                        List<JavadocBlockTag> blockTagList = d.getBlockTags();
-                        String value = null;
-                        for (JavadocBlockTag blockTag : blockTagList) {
-                            value = blockTag.getContent().toText();
-                            if (StringUtils.equalsIgnoreCase("param", blockTag.getTagName())) {
-                                requestNode.addParamNode(new ParamNode(blockTag.getName().orElse(null), value));
-                            } else if (StringUtils.equalsIgnoreCase("author", blockTag.getTagName())) {
-                                requestNode.setAuthor(value);
-                            } else if(StringUtils.equalsIgnoreCase("description", blockTag.getTagName())){
-                                requestNode.setSupplement(value);
-                            }
-                        }
+                        requestNode.setDescription(d.getDescription().toText());
+                        d.getBlockTags().forEach(e -> BlockTagParserFactory.putData(requestNode, e));
                     });
-
-                    m.getParameters().forEach(p -> {
-                        String paramName = p.getName().asString();
-                        ParamNode paramNode = requestNode.getParamNodeByName(paramName);
-                        if (paramNode == null || ParseUtils.isExcludeParam(p)) {
-                            requestNode.getParamNodes().remove(paramNode);
-                            return;
-                        }
-                        Type pType = p.getType();
-                        boolean isList = false;
-                        if(pType instanceof ArrayType){
-                            isList = true;
-                            pType = ((ArrayType) pType).getComponentType();
-                        }else if(ParseUtils.isCollectionType(pType.asString())){
-                            List<ClassOrInterfaceType> collectionTypes = pType.findAll(ClassOrInterfaceType.class);
-                            isList = true;
-                            if(!collectionTypes.isEmpty()){
-                                pType = collectionTypes.get(0);
-                            }else{
-                                paramNode.setType("Object[]");
-                            }
-                        }else{
-                            pType = p.getType();
-                        }
-                        if(paramNode.getType() == null){
-                            if(ParseUtils.isEnum(getControllerFile(), pType.asString())){
-                                paramNode.setType(isList ? "enum[]": "enum");
-                            }else{
-                                final String pUnifyType = ParseUtils.unifyType(pType.asString());
-                                paramNode.setType(isList ? pUnifyType + "[]": pUnifyType);
-                            }
-                        }
-                    });
-
-                    com.github.javaparser.ast.type.Type resultClassType = m.getType();
-                    String stringResult = null;
                     afterHandleMethod(requestNode, m);
-
-                    if (resultClassType == null) {
+                    // 获取方法返回类型
+                    com.github.javaparser.ast.type.Type returnClassType = m.getType();
+                    if (returnClassType == null) {
                         return;
                     }
                     ResponseNode responseNode = new ResponseNode(requestNode);
-                    handleResponseNode(responseNode, resultClassType.getElementType());
+                    handleResponseNode(responseNode, returnClassType.getElementType());
                     requestNode.setResponseNode(responseNode);
                     setRequestNodeChangeFlag(requestNode);
                     controllerNode.addRequestNode(requestNode);
@@ -155,14 +102,13 @@ public abstract class AbsControllerParser {
     }
 
     /**
-     * called before controller node has handled
-     *
+     * 获取Controller基础url
      * @param clazz
      */
-    protected void beforeHandleController(ControllerNode controllerNode, ClassOrInterfaceDeclaration clazz) {
+    protected void extractBaseUrl(ClassOrInterfaceDeclaration clazz) {
     }
 
-    abstract boolean shouldIgnoreMethod(MethodDeclaration m);
+    abstract boolean skipMethod(MethodDeclaration m);
 
     /**
      * handle response object
@@ -188,9 +134,6 @@ public abstract class AbsControllerParser {
         ParseUtils.parseClassNodeByType(javaFile, classNode, classType);
     }
 
-    /**
-     * called after request method node has handled
-     */
     protected void afterHandleMethod(RequestNode requestNode, MethodDeclaration md) {
     }
 
@@ -198,10 +141,9 @@ public abstract class AbsControllerParser {
     // 设置接口的类型（新/修改/一样）
     private void setRequestNodeChangeFlag(RequestNode requestNode) {
         List<ControllerNode> lastControllerNodeList = DocContext.getLastVersionControllerNodes();
-        if (lastControllerNodeList == null || lastControllerNodeList.isEmpty()) {
+        if (CollectionUtils.isEmpty(lastControllerNodeList)) {
             return;
         }
-
         for (ControllerNode lastControllerNode : lastControllerNodeList) {
             for (RequestNode lastRequestNode : lastControllerNode.getRequestNodes()) {
                 if (lastRequestNode.getUrl().equals(requestNode.getUrl())) {
@@ -211,18 +153,15 @@ public abstract class AbsControllerParser {
                 }
             }
         }
-
         requestNode.setChangeFlag(ChangeFlag.NEW);
     }
 
     private boolean isSameRequestNodes(RequestNode requestNode, RequestNode lastRequestNode) {
-
         for (String lastMethod : lastRequestNode.getMethod()) {
             if (!requestNode.getMethod().contains(lastMethod)) {
                 return false;
             }
         }
-
         return Utils.toJson(requestNode.getParamNodes()).equals(Utils.toJson(lastRequestNode.getParamNodes()))
                 && Utils.toJson(requestNode.getHeader()).equals(Utils.toJson(lastRequestNode.getHeader()))
                 && requestNode.getResponseNode().toJsonApi().equals(lastRequestNode.getResponseNode().toJsonApi());

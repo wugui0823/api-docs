@@ -7,17 +7,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * a request node  corresponds to a controller method
- *
- * @author yeguozhong yedaxia.github.com
- */
-public class RequestNode {
+public class RequestNode extends CommonNode{
 
     private List<String> method = new ArrayList<>();
     private String url;
     private String methodName; //方法名
-    private String description; //接口名
     private String supplement; //补充说明，对应方法 @description
     private List<ParamNode> paramNodes = new ArrayList<>();
     private List<HeaderNode> header = new ArrayList<>();
@@ -72,14 +66,6 @@ public class RequestNode {
 
     public void setUrl(String url) {
         this.url = url;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
     }
 
     public List<ParamNode> getParamNodes() {
